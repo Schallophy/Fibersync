@@ -20,6 +20,7 @@ import net.minecraft.entity.player.PlayerAbilities;
 import net.minecraft.network.ClientConnection;
 import net.minecraft.network.packet.s2c.play.CommonPlayerSpawnInfo;
 import net.minecraft.network.packet.s2c.play.PlayerAbilitiesS2CPacket;
+import net.minecraft.network.packet.s2c.play.PlayerPositionLookS2CPacket;
 import net.minecraft.network.packet.s2c.play.PlayerRespawnS2CPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.PlayerManager;
@@ -81,6 +82,11 @@ public class MixinPlayerManager implements IPlayerManager {
                 world.getSeaLevel()
             );
             connection.send(new PlayerRespawnS2CPacket(spawnInfo, (byte) 0));
+            
+            // Send player position to ensure client has correct position
+            net.minecraft.util.math.Vec3d pos = new net.minecraft.util.math.Vec3d(player.getX(), player.getY(), player.getZ());
+            net.minecraft.entity.EntityPosition entityPos = new net.minecraft.entity.EntityPosition(pos, pos, player.getYaw(), player.getPitch());
+            connection.send(new PlayerPositionLookS2CPacket(0, entityPos, java.util.Collections.emptySet()));
             
             // Send player abilities to ensure client has correct ability state
             PlayerAbilities abilities = player.getAbilities();
