@@ -56,10 +56,10 @@ public abstract class MixinMinecraftServer extends ReentrantThreadExecutor<Serve
     @Shadow @Mutable protected SaveProperties saveProperties;
 
     @Shadow
-    public abstract void prepareStartRegion();
+    public abstract void prepareStartRegion(ProgressListener progressListener);
 
     @Shadow
-    protected abstract void createWorlds();
+    protected abstract void createWorlds(ProgressListener progressListener);
 
     @Shadow
     protected abstract void updateDifficulty();
@@ -73,18 +73,14 @@ public abstract class MixinMinecraftServer extends ReentrantThreadExecutor<Serve
     @Unique private int tickBase;
 
     @Unique
-    private void loadWorld() {
+    private void loadWorld(ProgressListener startRegionListener) {
         LOGGER.info("loadWorld() started");
-        
-        // Note: SaveProperties should be reloaded by createWorlds()
-        // If world time is not being restored, the issue may be in how createWorlds() loads the level.dat
-        
-        this.createWorlds();
+        this.createWorlds(startRegionListener);
         LOGGER.info("createWorlds() completed");
         this.updateDifficulty();
         LOGGER.info("updateDifficulty() completed");
-        // prepareStartRegion() is now skipped by MixinMinecraftServerPrepareStartRegion
-        // to avoid compatibility issues in 1.21.11
+        this.prepareStartRegion(startRegionListener);
+        LOGGER.info("prepareStartRegion() completed");
     }
 
 
@@ -144,13 +140,18 @@ public abstract class MixinMinecraftServer extends ReentrantThreadExecutor<Serve
             LOGGER.info("Reloading");
             this.resetServer();
             LOGGER.info("resetServer() completed");
-            this.loadWorld();
+            this.loadWorld(limbo.getWorldGenListener());
             LOGGER.info("loadWorld() completed");
             limbo.end();
             LOGGER.info("limbo.end() completed");
 
             reloadCB.onReloadDone();
             reloadCB = null;
+
+            // Setup spawn info for all worlds
+            for (var world: this.worlds.values()) {
+                ((IServerChunkManager) world.getChunkManager()).setupSpawnInfo(null);
+            }
 
             // Note: setupSpawnInfo is called automatically during world creation
             // Commenting out to avoid potential issues during initial world generation
