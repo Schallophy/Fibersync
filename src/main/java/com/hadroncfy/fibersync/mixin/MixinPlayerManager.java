@@ -45,12 +45,32 @@ public class MixinPlayerManager implements IPlayerManager {
         if (this.shouldRefreshScreen) {
             GameMode gmode = player.interactionManager.getGameMode();
             var world = player.getEntityWorld();
+            var dimensionKey = world.getRegistryKey();
+            var dKey = dimensionKey == net.minecraft.world.World.OVERWORLD ? net.minecraft.world.World.NETHER : net.minecraft.world.World.OVERWORLD;
 
-            // Send these two packets to prevent the client from being stuck in the downloading terrain screen
-            // Create CommonPlayerSpawnInfo manually
+            // Send respawn to different dimension first, then back to original
+            // This forces the client to fully reload player state including abilities and skin
+            var otherWorld = server.getWorld(dKey);
+            if (otherWorld != null) {
+                var otherSpawnInfo = new net.minecraft.network.packet.s2c.play.CommonPlayerSpawnInfo(
+                    otherWorld.getDimensionEntry(),
+                    dKey,
+                    otherWorld.getSeed(),
+                    gmode,
+                    null, // lastGameMode
+                    false, // isDebug
+                    otherWorld.isFlat(),
+                    java.util.Optional.empty(), // lastDeathLocation
+                    0, // portalCooldown
+                    otherWorld.getSeaLevel()
+                );
+                connection.send(new PlayerRespawnS2CPacket(otherSpawnInfo, (byte) 0));
+            }
+            
+            // Then respawn back to original dimension
             var spawnInfo = new net.minecraft.network.packet.s2c.play.CommonPlayerSpawnInfo(
                 world.getDimensionEntry(),
-                world.getRegistryKey(),
+                dimensionKey,
                 world.getSeed(),
                 gmode,
                 null, // lastGameMode
@@ -60,8 +80,6 @@ public class MixinPlayerManager implements IPlayerManager {
                 0, // portalCooldown
                 world.getSeaLevel()
             );
-            
-            connection.send(new PlayerRespawnS2CPacket(spawnInfo, (byte) 0));
             connection.send(new PlayerRespawnS2CPacket(spawnInfo, (byte) 0));
             
             // Send player abilities to ensure client has correct ability state
