@@ -145,10 +145,13 @@ public class Limbo {
                     playerEntity = new ServerPlayerEntity(server, dummy, player.profile, player.syncedOptions);
                 }
                 playerEntity.setWorld(dummy);
-                ((IPlayer)playerEntity).reset(null);
                 
-                // Only restore the critical ability: allowModifyWorld
-                // Keep other abilities as they were before entering Limbo
+                // Only call reset if we created a new entity
+                if (player.entity == null) {
+                    ((IPlayer)playerEntity).reset(null);
+                }
+                
+                // Ensure player abilities allow world modification
                 PlayerAbilities abilities = playerEntity.getAbilities();
                 abilities.allowModifyWorld = true;
 
