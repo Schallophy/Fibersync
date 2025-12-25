@@ -1,6 +1,7 @@
 package com.hadroncfy.fibersync.restart;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -31,6 +32,7 @@ import net.minecraft.world.GameMode;
 import net.minecraft.world.World;
 import net.minecraft.network.packet.c2s.common.SyncedClientOptions;
 import net.minecraft.util.ProgressListener;
+import net.minecraft.entity.EntityPosition;
 
 public class Limbo {
     public final Set<RegistryKey<World>> world_keys;
@@ -97,6 +99,19 @@ public class Limbo {
                 false
             ));
         }
+        PlayerAbilities abilities = new PlayerAbilities();
+        abilities.allowFlying = true;
+        abilities.allowModifyWorld = false;
+        abilities.invulnerable = true;
+        abilities.flying = true;
+        abilities.creativeMode = false;
+        p.connection.send(new PlayerAbilitiesS2CPacket(abilities));
+        
+        // Send player position
+        Vec3d pos = new Vec3d(0, 0, 0);
+        EntityPosition entityPos = new EntityPosition(pos, pos, 0, 0);
+        p.connection.send(new PlayerPositionLookS2CPacket(0, entityPos, Collections.emptySet()));
+        
         rollBackProgressListener.onPlayerConnected(p);
 
         FibersyncMod.LOGGER.info("Player {} joined limbo", p.profile.name());
