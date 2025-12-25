@@ -19,9 +19,6 @@ import net.minecraft.advancement.PlayerAdvancementTracker;
 import net.minecraft.entity.player.PlayerAbilities;
 import net.minecraft.network.ClientConnection;
 import net.minecraft.network.packet.s2c.play.CommonPlayerSpawnInfo;
-import net.minecraft.network.packet.s2c.play.GameJoinS2CPacket;
-import net.minecraft.network.packet.s2c.play.PlayerAbilitiesS2CPacket;
-import net.minecraft.network.packet.s2c.play.PlayerPositionLookS2CPacket;
 import net.minecraft.network.packet.s2c.play.PlayerRespawnS2CPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.PlayerManager;
@@ -29,6 +26,7 @@ import net.minecraft.server.network.ConnectedClientData;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.stat.ServerStatHandler;
 import net.minecraft.world.GameMode;
+import net.minecraft.world.biome.source.BiomeAccess;
 
 @Mixin(PlayerManager.class)
 public class MixinPlayerManager implements IPlayerManager {
@@ -45,45 +43,42 @@ public class MixinPlayerManager implements IPlayerManager {
     ))
     private void onSendGameJoin(ClientConnection connection, ServerPlayerEntity player, ConnectedClientData clientData, CallbackInfo ci){
         if (this.shouldRefreshScreen) {
+            var dimensionKey = player.getEntityWorld().getRegistryKey();
+            var dKey = dimensionKey == net.minecraft.world.World.OVERWORLD ? net.minecraft.world.World.NETHER : net.minecraft.world.World.OVERWORLD;
+            var otherWorld = server.getWorld(dKey);
             GameMode gmode = player.interactionManager.getGameMode();
-            var world = player.getEntityWorld();
-            var dimensionKey = world.getRegistryKey();
 
-            // Send GameJoinS2CPacket to force complete client reload
-            // This is more powerful than PlayerRespawnS2CPacket as it resets all client state
-            connection.send(new GameJoinS2CPacket(
-                0,
-                false,
-                java.util.Set.of(dimensionKey),
-                20,
-                10,
-                10,
-                false,
-                false,
-                false,
-                new CommonPlayerSpawnInfo(
-                    world.getDimensionEntry(),
-                    dimensionKey,
-                    world.getSeed(),
+            // Send respawn to different dimension first
+            if (otherWorld != null) {
+                var otherSpawnInfo = new net.minecraft.network.packet.s2c.play.CommonPlayerSpawnInfo(
+                    otherWorld.getDimensionEntry(),
+                    dKey,
+                    otherWorld.getSeed(),
                     gmode,
-                    null, // lastGameMode
-                    false, // isDebug
-                    world.isFlat(),
-                    java.util.Optional.empty(), // lastDeathLocation
-                    0, // portalCooldown
-                    world.getSeaLevel()
-                ),
-                false
-            ));
+                    null,
+                    false,
+                    otherWorld.isFlat(),
+                    java.util.Optional.empty(),
+                    0,
+                    otherWorld.getSeaLevel()
+                );
+                connection.send(new PlayerRespawnS2CPacket(otherSpawnInfo, (byte) 0));
+            }
             
-            // Send player position to ensure client has correct position
-            net.minecraft.util.math.Vec3d pos = new net.minecraft.util.math.Vec3d(player.getX(), player.getY(), player.getZ());
-            net.minecraft.entity.EntityPosition entityPos = new net.minecraft.entity.EntityPosition(pos, pos, player.getYaw(), player.getPitch());
-            connection.send(new PlayerPositionLookS2CPacket(0, entityPos, java.util.Collections.emptySet()));
-            
-            // Send player abilities AFTER GameJoin to ensure client has correct ability state
-            PlayerAbilities abilities = player.getAbilities();
-            connection.send(new PlayerAbilitiesS2CPacket(abilities));
+            // Then respawn back to original dimension
+            var spawnInfo = new net.minecraft.network.packet.s2c.play.CommonPlayerSpawnInfo(
+                player.getEntityWorld().getDimensionEntry(),
+                dimensionKey,
+                player.getEntityWorld().getSeed(),
+                gmode,
+                null,
+                false,
+                player.getEntityWorld().isFlat(),
+                java.util.Optional.empty(),
+                0,
+                player.getEntityWorld().getSeaLevel()
+            );
+            connection.send(new PlayerRespawnS2CPacket(spawnInfo, (byte) 0));
         }
         var progress_bar = ((IServer) this.server).getBackupCommandContext(null).progress_bar.get();
         if (progress_bar != null) {
