@@ -14,7 +14,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import net.minecraft.network.packet.c2s.play.ChatMessageC2SPacket;
+import net.minecraft.network.message.SignedMessage;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayNetworkHandler;
@@ -30,18 +30,15 @@ public abstract class MixinServerPlayNetworkHandler {
     @Shadow
     public abstract ParseResults<ServerCommandSource> parse(String command);
 
-    @Inject(method = "onChatMessage", at = @At(
-        value = "INVOKE_ASSIGN",
-        target = "Lnet/minecraft/server/network/ServerPlayNetworkHandler;validateMessage(Ljava/lang/String;Ljava/time/Instant;Lnet/minecraft/network/message/LastSeenMessageList$Acknowledgment;)Ljava/util/Optional;"
-    ))
-    private void onChat(ChatMessageC2SPacket packet, CallbackInfo ci){
-        String msg = packet.chatMessage();
+    @Inject(method = "handleDecoratedMessage", at = @At("HEAD"))
+    private void onChat(SignedMessage message, CallbackInfo ci){
+        String msg = message.getContent().getString();
         Matcher m = PREFIX.matcher(msg);
         if (m.find()){
             String prefix = m.group();
             if (FibersyncMod.getConfig().alternativeCmdPrefix.contains(prefix)){
                 var cmd = BackupCommand.NAME + msg.substring(m.end());
-                this.server.submit(() -> player.getServer().getCommandManager().execute(this.parse(cmd), cmd));
+                this.server.submit(() -> this.server.getCommandManager().execute(this.parse(cmd), cmd));
             }
         }
     }

@@ -10,24 +10,19 @@ import net.minecraft.entity.boss.ServerBossBar;
 import net.minecraft.entity.boss.BossBar.Color;
 import net.minecraft.entity.boss.BossBar.Style;
 import net.minecraft.network.packet.s2c.play.BossBarS2CPacket;
-import net.minecraft.server.WorldGenerationProgressLogger;
-import net.minecraft.util.math.ChunkPos;
-import net.minecraft.world.chunk.ChunkStatus;
+import net.minecraft.text.Text;
+import net.minecraft.util.ProgressListener;
 
 import static com.hadroncfy.fibersync.FibersyncMod.getFormat;
 
-public class RollBackProgressListener extends WorldGenerationProgressLogger implements FileOperationProgressListener {
+public class RollBackProgressListener implements FileOperationProgressListener, ProgressListener {
     private final Limbo limbo;
-    private int loadedChunk;
     private long totalSize, size;
-    private static final int SPAWN_CHUNK_RADIUS = 11;// sbmojang, the spawn radius is hard-coded...
-    private static final int SPAWN_CHUNK_COUNT = (2*SPAWN_CHUNK_RADIUS + 1) * (2*SPAWN_CHUNK_RADIUS + 1);
     private final BossBar fileCopyProgressBar = new ServerBossBar(getFormat().fileCopyBarTitle, Color.GREEN, Style.PROGRESS);
     private final BossBar spawnChunkGenProgressBar = new ServerBossBar(getFormat().startRegionBarTitle, Color.GREEN, Style.PROGRESS);
     private boolean stopped = false;
 
     public RollBackProgressListener(Limbo limbo){
-        super(SPAWN_CHUNK_RADIUS);
         this.limbo = limbo;
         fileCopyProgressBar.setPercent(0);
         spawnChunkGenProgressBar.setPercent(0);
@@ -38,6 +33,7 @@ public class RollBackProgressListener extends WorldGenerationProgressLogger impl
         player.connection.send(BossBarS2CPacket.add(spawnChunkGenProgressBar));
     }
 
+    // FileOperationProgressListener methods
     @Override
     public void start(long totalSize) {
         this.totalSize = totalSize;
@@ -63,24 +59,32 @@ public class RollBackProgressListener extends WorldGenerationProgressLogger impl
         limbo.sendToAll(BossBarS2CPacket.updateProgress(fileCopyProgressBar));
     }
 
+    // ProgressListener methods (for world generation progress)
     @Override
-    public void start(ChunkPos spawnPos) {
-        super.start(spawnPos);
-        loadedChunk = 0;
+    public void setTitle(Text title) {
+        // Not used
     }
 
     @Override
-    public void setChunkStatus(ChunkPos pos, ChunkStatus status) {
-        super.setChunkStatus(pos, status);
-        if (!stopped && status == ChunkStatus.FULL){
-            spawnChunkGenProgressBar.setPercent((float)loadedChunk++ / (float)SPAWN_CHUNK_COUNT);
+    public void setTitleAndTask(Text title) {
+        // Not used
+    }
+
+    @Override
+    public void setTask(Text task) {
+        // Not used
+    }
+
+    @Override
+    public void progressStagePercentage(int percentage) {
+        if (!stopped) {
+            spawnChunkGenProgressBar.setPercent(percentage / 100.0f);
             limbo.sendToAll(BossBarS2CPacket.updateProgress(spawnChunkGenProgressBar));
         }
     }
 
     @Override
-    public void stop() {
-        super.stop();
+    public void setDone() {
         stopped = true;
     }
     

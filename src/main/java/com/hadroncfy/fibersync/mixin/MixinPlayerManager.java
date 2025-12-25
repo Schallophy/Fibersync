@@ -1,7 +1,6 @@
 package com.hadroncfy.fibersync.mixin;
 
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 
 import com.hadroncfy.fibersync.interfaces.IPlayerManager;
@@ -18,14 +17,14 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import net.minecraft.advancement.PlayerAdvancementTracker;
 import net.minecraft.network.ClientConnection;
+import net.minecraft.network.packet.s2c.play.CommonPlayerSpawnInfo;
 import net.minecraft.network.packet.s2c.play.PlayerRespawnS2CPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.PlayerManager;
+import net.minecraft.server.network.ConnectedClientData;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.stat.ServerStatHandler;
 import net.minecraft.world.GameMode;
-import net.minecraft.world.World;
-import net.minecraft.world.biome.source.BiomeAccess;
 
 @Mixin(PlayerManager.class)
 public class MixinPlayerManager implements IPlayerManager {
@@ -40,39 +39,28 @@ public class MixinPlayerManager implements IPlayerManager {
         target = "Lnet/minecraft/server/network/ServerPlayNetworkHandler;sendPacket(Lnet/minecraft/network/packet/Packet;)V",
         ordinal = 1
     ))
-    private void onSendGameJoin(ClientConnection connection, ServerPlayerEntity player, CallbackInfo ci){
+    private void onSendGameJoin(ClientConnection connection, ServerPlayerEntity player, ConnectedClientData clientData, CallbackInfo ci){
         if (this.shouldRefreshScreen) {
-            var dimensionKey = player.getWorld().getRegistryKey();
-            var dKey = dimensionKey == World.OVERWORLD ? World.NETHER : World.OVERWORLD;
-            var dType = player.getWorld().getDimensionKey();
             GameMode gmode = player.interactionManager.getGameMode();
+            var world = player.getEntityWorld();
 
             // Send these two packets to prevent the client from being stuck in the downloading terrain screen
-            // https://github.com/VelocityPowered/Velocity/blob/master/proxy/src/main/java/com/velocitypowered/proxy/connection/backend/TransitionSessionHandler.java
-            connection.send(new PlayerRespawnS2CPacket(
-                dType,
-                dKey,
-                0,
+            // Create CommonPlayerSpawnInfo manually
+            var spawnInfo = new net.minecraft.network.packet.s2c.play.CommonPlayerSpawnInfo(
+                world.getDimensionEntry(),
+                world.getRegistryKey(),
+                world.getSeed(),
                 gmode,
-                gmode,
-                false,
-                false,
-                (byte) 0,
-                Optional.empty(),
-                0
-            ));
-            connection.send(new PlayerRespawnS2CPacket(
-                dType,
-                dimensionKey,
-                BiomeAccess.hashSeed(player.getServerWorld().getSeed()),
-                gmode,
-                gmode,
-                player.getWorld().isDebugWorld(),
-                player.getServerWorld().isFlat(),
-                (byte) 0,
-                Optional.empty(),
-                0
-            ));
+                null, // lastGameMode
+                false, // isDebug
+                world.isFlat(),
+                java.util.Optional.empty(), // lastDeathLocation
+                0, // portalCooldown
+                world.getSeaLevel()
+            );
+            
+            connection.send(new PlayerRespawnS2CPacket(spawnInfo, (byte) 0));
+            connection.send(new PlayerRespawnS2CPacket(spawnInfo, (byte) 0));
         }
         var progress_bar = ((IServer) this.server).getBackupCommandContext(null).progress_bar.get();
         if (progress_bar != null) {

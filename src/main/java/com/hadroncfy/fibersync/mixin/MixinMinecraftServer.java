@@ -23,24 +23,18 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import net.minecraft.nbt.NbtOps;
-import net.minecraft.registry.CombinedDynamicRegistries;
-import net.minecraft.registry.RegistryKeys;
-import net.minecraft.registry.RegistryOps;
-import net.minecraft.registry.ServerDynamicRegistryType;
-import net.minecraft.resource.DataConfiguration;
+import net.minecraft.registry.RegistryKey;
 import net.minecraft.resource.ResourcePackManager;
 import net.minecraft.scoreboard.ServerScoreboard;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.ServerNetworkIo;
 import net.minecraft.server.ServerTask;
-import net.minecraft.server.WorldGenerationProgressListener;
-import net.minecraft.server.WorldGenerationProgressListenerFactory;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.thread.ReentrantThreadExecutor;
 import net.minecraft.world.SaveProperties;
-import net.minecraft.world.dimension.DimensionType;
+import net.minecraft.world.World;
 import net.minecraft.world.level.storage.LevelStorage;
+import net.minecraft.util.ProgressListener;
 
 @Mixin(MinecraftServer.class)
 public abstract class MixinMinecraftServer extends ReentrantThreadExecutor<ServerTask> implements IServer {
@@ -48,9 +42,8 @@ public abstract class MixinMinecraftServer extends ReentrantThreadExecutor<Serve
         super(string);
     }
 
-    @Unique private static final Logger LOGGER = LoggerFactory.getLogger("name");
+    @Unique private static final Logger LOGGER = LoggerFactory.getLogger("Fibersync");
 
-    @Shadow @Final protected WorldGenerationProgressListenerFactory worldGenerationProgressListenerFactory;
     @Shadow @Final protected LevelStorage.Session session;
     @Shadow @Final private ServerNetworkIo networkIo;
     @Shadow @Final private ResourcePackManager dataPackManager;
@@ -58,19 +51,18 @@ public abstract class MixinMinecraftServer extends ReentrantThreadExecutor<Serve
     @Shadow private volatile boolean running;
 
     // things that needs reseting
-    @Shadow @Final private Map<DimensionType, ServerWorld> worlds;
+    @Shadow @Final private Map<RegistryKey<World>, ServerWorld> worlds;
     @Shadow @Final private ServerScoreboard scoreboard;
     @Shadow @Mutable protected SaveProperties saveProperties;
-    @Shadow @Mutable private CombinedDynamicRegistries<ServerDynamicRegistryType> combinedDynamicRegistries;
 
     @Shadow
-    public abstract void prepareStartRegion(WorldGenerationProgressListener worldGenerationProgressListener);
+    public abstract void prepareStartRegion();
 
     @Shadow
-    protected abstract void createWorlds(WorldGenerationProgressListener worldGenerationProgressListener);
+    protected abstract void createWorlds();
 
     @Shadow
-    protected abstract void updateDifficulty(); // setDifficulty
+    protected abstract void updateDifficulty();
 
     @Unique private BackupCommandContext commandContext = new BackupCommandContext(() -> this.session.getDirectoryName());
     @Unique private Limbo limbo;
@@ -80,12 +72,15 @@ public abstract class MixinMinecraftServer extends ReentrantThreadExecutor<Serve
     @Unique private int tickTaskPeriod;
     @Unique private int tickBase;
 
-    // cannot directly call original loadWorld since other mods might mixin into this method
     @Unique
-    private void loadWorld(WorldGenerationProgressListener startRegionListener) {
-        this.createWorlds(startRegionListener);
+    private void loadWorld() {
+        LOGGER.info("loadWorld() started");
+        this.createWorlds();
+        LOGGER.info("createWorlds() completed");
         this.updateDifficulty();
-        this.prepareStartRegion(startRegionListener);
+        LOGGER.info("updateDifficulty() completed");
+        // prepareStartRegion() is now skipped by MixinMinecraftServerPrepareStartRegion
+        // to avoid compatibility issues in 1.21.11
     }
 
 
@@ -101,6 +96,7 @@ public abstract class MixinMinecraftServer extends ReentrantThreadExecutor<Serve
     @Inject(method = "tick", at = @At("HEAD"))
     private void onTick(BooleanSupplier booleanSupplier, CallbackInfo ci) {
         if (reloadCB != null) {
+            LOGGER.info("onTick: reloadCB is not null, starting reload process");
             final Limbo limbo = new Limbo((MinecraftServer) (Object) this);
 
             limbo.start();
@@ -121,13 +117,19 @@ public abstract class MixinMinecraftServer extends ReentrantThreadExecutor<Serve
 
             final var finished = new boolean[]{false};
             final var reload_thrd = new Thread(() -> {
+                LOGGER.info("Reload thread started");
                 reloadCB.onReload(limbo);
                 finished[0] = true;
+                LOGGER.info("Reload thread finished");
             });
             reload_thrd.start();
             while (!finished[0]) {
                 limbo.removeRemovedPlayers();
-                this.networkIo.tick();
+                try {
+                    this.networkIo.tick();
+                } catch (Exception e) {
+                    LOGGER.error("Network error during limbo", e);
+                }
                 try {
                     Thread.sleep(50);
                 } catch (InterruptedException e) {
@@ -137,29 +139,26 @@ public abstract class MixinMinecraftServer extends ReentrantThreadExecutor<Serve
 
             LOGGER.info("Reloading");
             this.resetServer();
-            this.loadWorld(limbo.getWorldGenListener());
+            LOGGER.info("resetServer() completed");
+            this.loadWorld();
+            LOGGER.info("loadWorld() completed");
             limbo.end();
+            LOGGER.info("limbo.end() completed");
 
             reloadCB.onReloadDone();
             reloadCB = null;
 
-            for (var world: this.worlds.values()) {
-                ((IServerChunkManager) world.getChunkManager()).setupSpawnInfo(null);
-            }
+            // Note: setupSpawnInfo is called automatically during world creation
+            // Commenting out to avoid potential issues during initial world generation
+            // for (var world: this.worlds.values()) {
+            //     ((IServerChunkManager) world.getChunkManager()).setupSpawnInfo(null);
+            // }
         }
     }
 
     @Unique
     private void resetServer() {
         ((IServerScoreboard) this.scoreboard).reset(null);
-        var dataConfig = new DataConfiguration(MinecraftServer.createDataPackSettings(this.dataPackManager), this.saveProperties.getEnabledFeatures());
-        var reg = this.combinedDynamicRegistries.getCombinedRegistryManager();
-        var props = this.session.readLevelProperties(RegistryOps.of(NbtOps.INSTANCE, reg), dataConfig, reg.get(RegistryKeys.DIMENSION), reg.getRegistryLifecycle());
-        if (props != null) {
-            this.saveProperties = props.getFirst();
-        } else {
-            LOGGER.warn("failed to reload save properties");
-        }
     }
 
     @Inject(method = "tick", at = @At(

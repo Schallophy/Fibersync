@@ -1,7 +1,6 @@
 package com.hadroncfy.fibersync.restart;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -16,6 +15,7 @@ import com.hadroncfy.fibersync.util.copy.FileOperationProgressListener;
 
 import net.minecraft.entity.player.PlayerAbilities;
 import net.minecraft.network.packet.Packet;
+import net.minecraft.network.packet.s2c.play.CommonPlayerSpawnInfo;
 import net.minecraft.network.packet.s2c.play.GameJoinS2CPacket;
 import net.minecraft.network.packet.s2c.play.GameMessageS2CPacket;
 import net.minecraft.network.packet.s2c.play.PlayerAbilitiesS2CPacket;
@@ -23,13 +23,14 @@ import net.minecraft.network.packet.s2c.play.PlayerPositionLookS2CPacket;
 import net.minecraft.registry.RegistryKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.PlayerManager;
-import net.minecraft.server.WorldGenerationProgressListener;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.GameMode;
 import net.minecraft.world.World;
-import net.minecraft.world.dimension.DimensionTypes;
+import net.minecraft.network.packet.c2s.common.SyncedClientOptions;
+import net.minecraft.util.ProgressListener;
 
 public class Limbo {
     public final Set<RegistryKey<World>> world_keys;
@@ -58,7 +59,7 @@ public class Limbo {
         ((IServer) this.server).setLimbo(null, this);
     }
 
-    public WorldGenerationProgressListener getWorldGenListener(){
+    public ProgressListener getWorldGenListener(){
         return rollBackProgressListener;
     }
 
@@ -68,35 +69,37 @@ public class Limbo {
 
     public void onPlayerConnect(AwaitingPlayer p, boolean sendJoin){
         if (sendJoin) {
+            ServerWorld overworld = this.server.getOverworld();
+            // Create CommonPlayerSpawnInfo manually since createCommonSpawnInfo no longer exists
+            CommonPlayerSpawnInfo spawnInfo = new CommonPlayerSpawnInfo(
+                overworld.getDimensionEntry(),
+                overworld.getRegistryKey(),
+                overworld.getSeed(),
+                GameMode.SPECTATOR,
+                null, // lastGameMode
+                false, // isDebug
+                overworld.isFlat(),
+                Optional.empty(), // lastDeathLocation
+                0, // portalCooldown
+                overworld.getSeaLevel()
+            );
             p.connection.send(new GameJoinS2CPacket(
                 0,
                 false,
-                GameMode.SPECTATOR,
-                GameMode.SPECTATOR,
                 this.world_keys,
-                this.server.getRegistryManager(),
-                DimensionTypes.OVERWORLD,
-                World.OVERWORLD,
-                0L,
                 20,
                 10,
                 10,
-                false, false, false, false,
-                Optional.empty(),
-                0
+                false,
+                false,
+                false,
+                spawnInfo,
+                false
             ));
         }
-        PlayerAbilities abilities = new PlayerAbilities();
-        abilities.allowFlying = true;
-        abilities.allowModifyWorld = false;
-        abilities.invulnerable = true;
-        abilities.flying = true;
-        abilities.creativeMode = false;
-        p.connection.send(new PlayerAbilitiesS2CPacket(abilities));
-        p.connection.send(new PlayerPositionLookS2CPacket(0, 0, 0, 0, 0, Collections.emptySet(), 0));
         rollBackProgressListener.onPlayerConnected(p);
 
-        FibersyncMod.LOGGER.info("Player {} joined limbo", p.profile.getName());
+        FibersyncMod.LOGGER.info("Player {} joined limbo", p.profile.name());
         addPlayer(p);
     }
 
@@ -118,23 +121,18 @@ public class Limbo {
 
         if (server.isSingleplayer() && players.isEmpty()){
             FibersyncMod.LOGGER.info("Stopping server as the server has no players");
-            // server.stop(true);
         } else {
             pm.setShouldRefreshScreen(null, true);
             for (AwaitingPlayer player : players) {
-                // we can't just create a new ServerPlayerEntity here since the original player
-                // may
-                // be the instance of an inherited class of ServerPlayerEntity, such as
-                // carpet.patches.EntityPlayerMPFake, or
-                // com.hadroncfy.sreplay.recording.Photographer.
                 var playerEntity = player.entity;
                 if (playerEntity == null) {
-                    playerEntity = playerManager.createPlayer(player.profile);
+                    // Create ServerPlayerEntity directly since createPlayer no longer exists
+                    playerEntity = new ServerPlayerEntity(server, dummy, player.profile, player.syncedOptions);
                 }
-                playerEntity.setWorld(dummy); // avoid NullPointException when loading player data
+                playerEntity.setWorld(dummy);
                 ((IPlayer)playerEntity).reset(null);
 
-                playerManager.onPlayerConnect(player.connection, playerEntity);
+                playerManager.onPlayerConnect(player.connection, playerEntity, player.clientData);
             }
             pm.setShouldRefreshScreen(null, false);
         }
@@ -161,7 +159,7 @@ public class Limbo {
             AwaitingPlayer p = iterator.next();
             if (p.removed){
                 iterator.remove();
-                FibersyncMod.LOGGER.info("Player {} left limbo", p.profile.getName());
+                FibersyncMod.LOGGER.info("Player {} left limbo", p.profile.name());
             }
         }
     }

@@ -134,7 +134,7 @@ public class BackupCommand {
     }
 
     private static boolean canLock(ServerCommandSource src) {
-        return src.hasPermissionLevel(1);
+        return src.getPermissions().hasPermission(net.minecraft.command.DefaultPermissions.MODERATORS);
     }
 
     private static int reload(CommandContext<ServerCommandSource> ctx) {
@@ -279,7 +279,7 @@ public class BackupCommand {
         return null;
     }
 
-    private static int create(CommandContext<ServerCommandSource> ctx) {
+    private static int create(CommandContext<ServerCommandSource> ctx) throws CommandSyntaxException {
         final ServerCommandSource src = ctx.getSource();
         final MinecraftServer server = src.getServer();
         final BackupCommandContext cctx = ((IServer)server).getBackupCommandContext(null);

@@ -15,21 +15,26 @@ import net.minecraft.network.ClientConnection;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerLoginNetworkHandler;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @Mixin(ServerLoginNetworkHandler.class)
 public class MixinServerLoginNetworkHandler {
+    private static final Logger LOGGER = LoggerFactory.getLogger("Fibersync");
+
     @Shadow @Final MinecraftServer server;
-    @Shadow @Final public ClientConnection connection;
+    @Shadow @Final ClientConnection connection;
     @Shadow GameProfile profile;
 
-    @Inject(method = "acceptPlayer", at = @At(
-        value = "INVOKE",
-        target = "Lnet/minecraft/server/PlayerManager;getPlayer(Ljava/util/UUID;)Lnet/minecraft/server/network/ServerPlayerEntity;"
-    ), cancellable = true)
-    private void onAcceptPlayer(CallbackInfo ci) {
-        var limbo = ((IServer) this.server).getLimbo(null);
-        if (limbo != null) {
-            limbo.onPlayerConnect(new AwaitingPlayer(limbo, this.profile, this.connection), true);
-            ci.cancel();
-        }
-    }
+    /**
+     * In 1.21.11, player login is handled by PlayerList.placeNewPlayer()
+     * We need to intercept at that point instead of in ServerLoginNetworkHandler
+     * 
+     * This Mixin is kept for reference but the actual interception happens in MixinPlayerList
+     */
 }
+
+
+
+
+

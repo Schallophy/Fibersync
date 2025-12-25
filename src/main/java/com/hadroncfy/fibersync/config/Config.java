@@ -12,15 +12,8 @@ import com.google.gson.GsonBuilder;
 import com.hadroncfy.fibersync.util.SimpleFileExcluder;
 import com.hadroncfy.fibersync.util.copy.FileSkipMode;
 
-import net.minecraft.text.Style;
-import net.minecraft.text.Text;
-import net.minecraft.util.LowercaseEnumTypeAdapterFactory;
-
 public class Config {
     public static final Gson GSON = new GsonBuilder().setPrettyPrinting()
-        .registerTypeHierarchyAdapter(Text.class, new Text.Serializer())
-        .registerTypeHierarchyAdapter(Style.class, new Style.Serializer())
-        .registerTypeAdapterFactory(new LowercaseEnumTypeAdapterFactory())
         .registerTypeAdapter(SimpleDateFormat.class, new SimpleDateFormatSerializer())
         .registerTypeHierarchyAdapter(Path.class, new PathSerializer())
         .registerTypeHierarchyAdapter(PathMatcher.class, new FileExcluderSerializer()).create();

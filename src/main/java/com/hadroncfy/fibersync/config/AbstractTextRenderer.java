@@ -2,8 +2,8 @@ package com.hadroncfy.fibersync.config;
 
 import net.minecraft.text.ClickEvent;
 import net.minecraft.text.HoverEvent;
-import net.minecraft.text.LiteralTextContent;
 import net.minecraft.text.MutableText;
+import net.minecraft.text.PlainTextContent;
 import net.minecraft.text.Style;
 import net.minecraft.text.Text;
 import net.minecraft.text.TranslatableTextContent;
@@ -14,7 +14,7 @@ public abstract class AbstractTextRenderer<C> {
     public Text render(C ctx, Text template){
         MutableText ret;
         var content = template.getContent();
-        if (content instanceof LiteralTextContent c2){
+        if (content instanceof PlainTextContent.Literal c2){
             ret = renderString(c2.string());
         } else if (content instanceof TranslatableTextContent tc){
             Object[] args = new Object[tc.getArgs().length];
@@ -44,14 +44,21 @@ public abstract class AbstractTextRenderer<C> {
         Style ret = style;
 
         HoverEvent h = style.getHoverEvent();
-        if (h != null && h.getAction() == HoverEvent.Action.SHOW_TEXT){
-            Text content = h.getValue(HoverEvent.Action.SHOW_TEXT);
-            ret = ret.withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, renderString(content.getString())));
+        if (h != null && h instanceof HoverEvent.ShowText showText){
+            Text content = showText.value();
+            ret = ret.withHoverEvent(new HoverEvent.ShowText(renderString(content.getString())));
         }
 
         ClickEvent c = style.getClickEvent();
-        if (c != null){
-            ret = ret.withClickEvent(new ClickEvent(c.getAction(), renderString(c.getValue()).getString()));
+        if (c != null && c instanceof ClickEvent.RunCommand runCmd){
+            ret = ret.withClickEvent(new ClickEvent.RunCommand(renderString(runCmd.command()).getString()));
+        } else if (c != null && c instanceof ClickEvent.SuggestCommand suggestCmd){
+            ret = ret.withClickEvent(new ClickEvent.SuggestCommand(renderString(suggestCmd.command()).getString()));
+        } else if (c != null && c instanceof ClickEvent.OpenUrl openUrl){
+            // URL doesn't need rendering
+            ret = ret.withClickEvent(c);
+        } else if (c != null && c instanceof ClickEvent.CopyToClipboard copyCmd){
+            ret = ret.withClickEvent(new ClickEvent.CopyToClipboard(renderString(copyCmd.value()).getString()));
         }
 
         String i = style.getInsertion();

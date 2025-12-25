@@ -8,13 +8,10 @@ import net.minecraft.text.HoverEvent;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Style;
 import net.minecraft.text.Text;
-import net.minecraft.text.ClickEvent.Action;
 import net.minecraft.util.Formatting;
 
 public class Formats {
-    public static final Gson GSON = new GsonBuilder().setPrettyPrinting()
-        .registerTypeHierarchyAdapter(Text.class, new Text.Serializer())
-        .registerTypeHierarchyAdapter(Style.class, new Style.Serializer()).create();
+    public static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     private static MutableText red(String s){
         return Text.literal(s).setStyle(Style.EMPTY.withColor(Formatting.RED));
@@ -38,15 +35,15 @@ public class Formats {
     public Text backupListTitle = Text.literal("存档列表：").setStyle(Style.EMPTY.withColor(Formatting.BLUE));
     public Text mirrorListTitle = Text.literal("镜像存档列表：").setStyle(Style.EMPTY.withColor(Formatting.BLUE));
     public Text backupListItem = Text.empty().append(Text.literal("-[$1]").setStyle(Style.EMPTY.withColor(Formatting.GREEN)
-            .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("点击回档至该存档").setStyle(Style.EMPTY.withColor(Formatting.GRAY).withItalic(true))))
-            .withClickEvent(new ClickEvent(Action.RUN_COMMAND, "/fs back $1"))))
+            .withHoverEvent(new HoverEvent.ShowText(Text.literal("点击回档至该存档").setStyle(Style.EMPTY.withColor(Formatting.GRAY).withItalic(true))))
+            .withClickEvent(new ClickEvent.RunCommand("/fs back $1"))))
         .append(Text.literal(" 时间：").setStyle(Style.EMPTY.withColor(Formatting.WHITE)))
         .append(Text.literal("$3").setStyle(Style.EMPTY.withColor(Formatting.GREEN)))
         .append(Text.literal(" 描述：").setStyle(Style.EMPTY.withColor(Formatting.WHITE)))
         .append(Text.literal("$2").setStyle(Style.EMPTY.withColor(Formatting.GREEN)));
     public Text lockedBackupListItem = Text.empty().append(Text.literal("-[$1]").setStyle(Style.EMPTY.withColor(Formatting.RED)
-            .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("（此存档已锁定）点击回档至该存档").setStyle(Style.EMPTY.withColor(Formatting.GRAY).withItalic(true))))
-            .withClickEvent(new ClickEvent(Action.RUN_COMMAND, "/fs back $1"))))
+            .withHoverEvent(new HoverEvent.ShowText(Text.literal("（此存档已锁定）点击回档至该存档").setStyle(Style.EMPTY.withColor(Formatting.GRAY).withItalic(true))))
+            .withClickEvent(new ClickEvent.RunCommand("/fs back $1"))))
         .append(Text.literal(" 时间：").setStyle(Style.EMPTY.withColor(Formatting.WHITE)))
         .append(Text.literal("$3").setStyle(Style.EMPTY.withColor(Formatting.GREEN)))
         .append(Text.literal(" 描述：").setStyle(Style.EMPTY.withColor(Formatting.WHITE)))
