@@ -88,7 +88,8 @@ public class MixinPlayerManager implements IPlayerManager {
             net.minecraft.entity.EntityPosition entityPos = new net.minecraft.entity.EntityPosition(pos, pos, player.getYaw(), player.getPitch());
             connection.send(new PlayerPositionLookS2CPacket(0, entityPos, java.util.Collections.emptySet()));
             
-            // Send player abilities to ensure client has correct ability state
+            // Send player abilities AFTER respawn to ensure client has correct ability state
+            // This is critical because the respawn packet may reset client-side abilities
             PlayerAbilities abilities = player.getAbilities();
             connection.send(new PlayerAbilitiesS2CPacket(abilities));
         }
