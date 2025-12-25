@@ -75,6 +75,10 @@ public abstract class MixinMinecraftServer extends ReentrantThreadExecutor<Serve
     @Unique
     private void loadWorld() {
         LOGGER.info("loadWorld() started");
+        
+        // Note: SaveProperties should be reloaded by createWorlds()
+        // If world time is not being restored, the issue may be in how createWorlds() loads the level.dat
+        
         this.createWorlds();
         LOGGER.info("createWorlds() completed");
         this.updateDifficulty();
