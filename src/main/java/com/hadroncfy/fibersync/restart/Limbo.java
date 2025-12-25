@@ -146,6 +146,14 @@ public class Limbo {
                 }
                 playerEntity.setWorld(dummy);
                 ((IPlayer)playerEntity).reset(null);
+                
+                // Ensure player abilities are set to allow world modification
+                PlayerAbilities abilities = playerEntity.getAbilities();
+                abilities.allowModifyWorld = true;
+                abilities.allowFlying = false;
+                abilities.invulnerable = false;
+                abilities.flying = false;
+                abilities.creativeMode = false;
 
                 playerManager.onPlayerConnect(player.connection, playerEntity, player.clientData);
             }
