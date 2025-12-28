@@ -79,15 +79,9 @@ public class DummyConnectionInitializer {
         try {
             var registryByteBufFactory = RegistryByteBuf.makeFactory(server.getRegistryManager());
             
-            var context = new PlayStateFactories.PacketCodecModifierContext() {
-                @Override
-                public boolean isInCreativeMode() {
-                    return false;
-                }
-            };
-            
             // 绑定 PLAY 状态的出站编解码器
-            var outboundState = PlayStateFactories.S2C.bind(registryByteBufFactory, context);
+            // S2C 不需要 PacketCodecModifierContext
+            var outboundState = PlayStateFactories.S2C.bind(registryByteBufFactory);
             
             // 过渡到 PLAY 状态
             connection.transitionOutbound(outboundState);
