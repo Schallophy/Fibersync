@@ -49,8 +49,15 @@ public class DummyConnectionInitializer {
         try {
             var registryByteBufFactory = RegistryByteBuf.makeFactory(server.getRegistryManager());
             
+            var context = new PlayStateFactories.PacketCodecModifierContext() {
+                @Override
+                public boolean isInCreativeMode() {
+                    return false;
+                }
+            };
+            
             // 绑定 PLAY 状态的入站编解码器
-            var inboundState = PlayStateFactories.C2S.bind(registryByteBufFactory);
+            var inboundState = PlayStateFactories.C2S.bind(registryByteBufFactory, context);
             
             // 过渡到 PLAY 状态并设置数据包监听器
             connection.transitionInbound(inboundState, playHandler);
@@ -72,8 +79,15 @@ public class DummyConnectionInitializer {
         try {
             var registryByteBufFactory = RegistryByteBuf.makeFactory(server.getRegistryManager());
             
+            var context = new PlayStateFactories.PacketCodecModifierContext() {
+                @Override
+                public boolean isInCreativeMode() {
+                    return false;
+                }
+            };
+            
             // 绑定 PLAY 状态的出站编解码器
-            var outboundState = PlayStateFactories.S2C.bind(registryByteBufFactory);
+            var outboundState = PlayStateFactories.S2C.bind(registryByteBufFactory, context);
             
             // 过渡到 PLAY 状态
             connection.transitionOutbound(outboundState);
