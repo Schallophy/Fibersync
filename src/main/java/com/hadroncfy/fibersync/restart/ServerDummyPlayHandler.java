@@ -36,17 +36,14 @@ public class ServerDummyPlayHandler implements ServerPlayPacketListener, Tickabl
     public ServerDummyPlayHandler(Limbo limbo, AwaitingPlayer player){
         this.player = player;
         this.limbo = limbo;
-        // In 1.21.11, we need to use bind() to get a NetworkState from the factory
-        var networkState = PlayStateFactories.C2S.bind(
-            RegistryByteBuf.makeFactory(limbo.getServer().getRegistryManager()),
-            new PlayStateFactories.PacketCodecModifierContext() {
-                @Override
-                public boolean isInCreativeMode() {
-                    return false;
-                }
-            }
+        
+        // 1.21 适配：使用 DummyConnectionInitializer 正确初始化虚假连接
+        // 这确保 Netty Pipeline 包含所有必要的处理器，包括 PacketBundleHandler
+        DummyConnectionInitializer.initializeDummyConnection(
+            player.connection,
+            limbo.getServer(),
+            this
         );
-        player.connection.transitionInbound(networkState, this);
 
         final PlayerAbilities ab = new PlayerAbilities();
         ab.flying = true;

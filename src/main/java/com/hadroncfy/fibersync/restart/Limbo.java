@@ -164,6 +164,8 @@ public class Limbo {
 
     public void sendToAll(Packet<?> packet) {
         for (AwaitingPlayer player : players) {
+            // 1.21 适配：使用 ClientConnection.send() 确保数据包正确地通过 Pipeline
+            // 这会自动处理数据包的打包和排队
             player.connection.send(packet);
         }
     }
